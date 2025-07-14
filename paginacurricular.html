@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Malla Curricular - Ingeniería Informática</title>
+<style>
+  /* ────────── ESTILOS BÁSICOS ────────── */
+  body{font-family:'Segoe UI',sans-serif;background:#f8f9fa;margin:0;padding:20px}
+  h1{margin-bottom:20px;text-align:center;color:#2c3e50}
+  .malla{display:grid;grid-template-columns:repeat(10,1fr);gap:10px;justify-items:center}
+  .ciclo{background:#fff;border:1px solid #ccc;border-radius:8px;padding:10px;width:100%}
+  .titulo-ciclo{text-align:center;font-weight:bold;margin-bottom:10px;color:#34495e;font-size:1.1em}
+  .curso{position:relative;background:#e9ecef;padding:12px 8px;border:1px solid #bbb;margin-bottom:8px;border-radius:5px;font-size:.95em;line-height:1.4em;text-align:center;cursor:pointer;transition:.3s}
+  .curso:hover{background:#d6d8db}
+  .curso.desbloqueado{background:#fff3cd;border-color:#ffc107;color:#856404}
+  .curso.pasado::after{content:"✅";color:green;font-size:1.2em;position:absolute;top:2px;right:6px}
+  .curso.excepcion::after{content:"🛈";color:#c0392b;font-size:1.2em;position:absolute;top:2px;right:6px}
+
+  /* Botón Excepción */
+  #toggleExcepcion{display:block;margin:0 auto 20px;padding:10px 18px;font-size:1rem;border:none;border-radius:8px;background:#ffc107;color:#856404;cursor:pointer;transition:.3s}
+  #toggleExcepcion:hover{background:#ffca2c}
+
+  /* Planificador de periodos (semestres + veranos) */
+  #planificador{margin:30px 0;text-align:center}
+  #periodSelect,#newSem,#newSum{padding:8px 12px;font-size:.95rem;border-radius:6px;border:1px solid #bbb;margin:0 6px}
+  #periodos{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+  .periodo{background:#ffffff;border:1px solid #ced4da;border-radius:10px;padding:10px 14px;min-width:220px}
+  .periodo h3{margin:0 0 6px;color:#2c3e50;font-size:1.05em}
+  .periodo p{margin:2px 0;font-size:.9em}
+  #creditos-info{margin-top:20px;text-align:center;font-size:1.1em;color:#2c3e50}
+</style>
+</head>
+<body>
+
+<h1>Malla Curricular de Ingeniería Informática 2023</h1>
+
+<button id="toggleExcepcion">Excepción (0/5) – OFF</button>
+
+<div class="malla" id="contenedor"></div>
+
+<!-- PLANIFICADOR -->
+<div id="planificador">
+  <label for="periodSelect"><strong>Periodo actual:</strong></label>
+  <select id="periodSelect"></select>
+  <button id="newSem">+ Nuevo semestre</button>
+  <button id="newSum">+ Nuevo verano</button>
+</div>
+<div id="periodos"></div>
+
+<div id="creditos-info"></div>
+
+<script>
+/* ──────────── DATOS CURRICULARES ──────────── */
+const ciclos = {
+  "Primer Ciclo": ["U0006", "U0082", "U0130", "U0129", "U0666", "U0148"],
+  "Segundo Ciclo": ["U0083", "U0137", "U0138", "U0147", "U0150", "U0149"],
+  "Tercer Ciclo": ["C0741", "C0742", "C8987", "C0513", "C8274", "C8275"],
+  "Cuarto Ciclo": ["C0743", "C1127", "C0745", "C0503", "C8276", "C8277"],
+  "Quinto Ciclo": ["C1324", "G0037", "C8278", "C8279", "C8280", "C8281", "COMP_I"],
+  "Sexto Ciclo": ["C1330", "C8282", "C8283", "C8284", "C0359", "ELECTIVA_I"],
+  "Séptimo Ciclo": ["C1335", "G0038", "C8285", "C8286", "C8287", "ELECTIVA_II", "COMP_II"],
+  "Octavo Ciclo": ["C1343", "C1342", "G0039", "C8288", "C8289", "ELECTIVA_III", "COMP_III"],
+  "Noveno Ciclo": ["C8290", "C0772", "C8269", "G0040", "C8291", "ELECTIVA_IV"],
+  "Décimo Ciclo": ["C8272", "INVESTIGACION", "C8292", "C8293", "ELECTIVA_V", "ELECTIVA_VI", "COMP_IV"]
+};
+
+const cursos = {
+  "U0006": { nombre: "Filosofía General", prerequisitos: [], creditos: 3 },
+  "U0082": { nombre: "Comunicación y Redacción I", prerequisitos: [], creditos: 3 },
+  "U0130": { nombre: "Cálculo Diferencial", prerequisitos: [], creditos: 4 },
+  "U0129": { nombre: "Álgebra Matricial", prerequisitos: [], creditos: 3 },
+  "U0666": { nombre: "Química General", prerequisitos: [], creditos: 5 },
+  "U0148": { nombre: "Intro a la Ing. Informática", prerequisitos: [], creditos: 2 },
+  "U0083": { nombre: "Comunicación y Redacción II", prerequisitos: ["U0082"], creditos: 3 },
+  "U0137": { nombre: "Cálculo Integral", prerequisitos: ["U0130"], creditos: 4 },
+  "U0138": { nombre: "Física I", prerequisitos: [], creditos: 5 },
+  "U0147": { nombre: "Biología", prerequisitos: [], creditos: 5 },
+  "U0150": { nombre: "Innovación en Ing.", prerequisitos: [], creditos: 2 },
+  "U0149": { nombre: "Fund. de Programación", prerequisitos: [], creditos: 3 },
+  "C0741": { nombre: "Cálculo Vectorial", prerequisitos: ["U0130", "U0129"], creditos: 4 },
+  "C0742": { nombre: "Física II", prerequisitos: ["U0138"], creditos: 5 },
+  "C8987": { nombre: "Química Computacional", prerequisitos: ["U0666"], creditos: 5 },
+  "C0513": { nombre: "Ciencias Sociales", prerequisitos: ["U0083"], creditos: 2 },
+  "C8274": { nombre: "Prog. Orientada a Objetos", prerequisitos: ["U0149"], creditos: 3 },
+  "C8275": { nombre: "Estructuras Discretas", prerequisitos: [], creditos: 3 },
+  "C0743": { nombre: "Ecuaciones Diferenciales", prerequisitos: ["C0741"], creditos: 4 },
+  "C1127": { nombre: "Programación Avanzada", prerequisitos: ["U0149"], creditos: 3 },
+  "C0745": { nombre: "Física III", prerequisitos: ["C0742"], creditos: 5 },
+  "C0503": { nombre: "Estadística y Probabilidades", prerequisitos: ["U0137"], creditos: 4 },
+  "C8276": { nombre: "Arquitectura de Computadores", prerequisitos: ["C8274"], creditos: 3 },
+  "C8277": { nombre: "Algoritmos y E.D.", prerequisitos: ["C8275"], creditos: 3 },
+  "C1324": { nombre: "Fundamentos de Diseño", prerequisitos: ["U0150"], creditos: 3 },
+  "G0037": { nombre: "Inglés 1", prerequisitos: [], creditos: 2 },
+  "C8278": { nombre: "Análisis de Algoritmos", prerequisitos: ["C8277"], creditos: 4 },
+  "C8279": { nombre: "Sistemas Operativos", prerequisitos: ["C8276"], creditos: 4 },
+  "C8280": { nombre: "Comunicacion Datos Y Redes", prerequisitos: ["C8276"], creditos: 4 },
+  "C8281": { nombre: "Intro a Machine Learning", prerequisitos: ["C0503"], creditos: 4 },
+  "C1330": { nombre: "Proyectos I", prerequisitos: ["C1324"], creditos: 5 },
+  "C8282": { nombre: "Bases de Datos", prerequisitos: ["C8277"], creditos: 4 },
+  "C8283": { nombre: "Impl. Lenguajes", prerequisitos: ["C8279"], creditos: 4 },
+  "C8284": { nombre: "Criptografía", prerequisitos: ["C8279"], creditos: 3 },
+  "C0359": { nombre: "Sistemas de Información", prerequisitos: ["C8280"], creditos: 3 },
+  "ELECTIVA_I": { nombre: "Electiva I", prerequisitos: [], creditos: 3 },
+  "C1335": { nombre: "Desarrollo Profesional 1", prerequisitos: [], creditos: 2 , creditosMinimos: 120},
+  "G0038": { nombre: "Inglés 2", prerequisitos: ["G0037"], creditos: 2 },
+  "C8285": { nombre: "Human-Centered Design", prerequisitos: ["C0359"], creditos: 4 },
+  "C8286": { nombre: "Computación Paralela", prerequisitos: ["C8279"], creditos: 4 },
+  "C8287": { nombre: "Ing. Software", prerequisitos: ["C0359"], creditos: 4 },
+  "ELECTIVA_II": { nombre: "Electiva II", prerequisitos: [], creditos: 3 },
+  "COMP_II": { nombre: "Actividad Complementaria II", prerequisitos: [], creditos: 1 },
+  "C1343": { nombre: "Proyectos II", prerequisitos: ["C1330"], creditos: 5 },
+  "C1342": { nombre: "Desarrollo Profesional 2", prerequisitos: ["C1335"], creditos: 2 },
+  "G0039": { nombre: "Inglés 3", prerequisitos: ["G0038"], creditos: 2 },
+  "C8288": { nombre: "Desarrollo Web", prerequisitos: ["C8287"], creditos: 4 },
+  "C8289": { nombre: "Visualización", prerequisitos: ["C8285"], creditos: 4 },
+  "ELECTIVA_III": { nombre: "Electiva III", prerequisitos: [], creditos: 3 },
+  "C8290": { nombre: "Diseño de Negocios", prerequisitos: ["C1343"], creditos: 2 },
+  "C0772": { nombre: "Ética", prerequisitos: ["U0006"], creditos: 2 },
+  "C8269": { nombre: "Tesis 1", prerequisitos: [], creditos: 5 , creditosMinimos: 150 },
+  "G0040": { nombre: "Inglés 4", prerequisitos: ["G0039"], creditos: 2 },
+  "C8291": { nombre: "Sistemas Móviles", prerequisitos: ["C8287"], creditos: 4 },
+  "ELECTIVA_IV": { nombre: "Electiva IV", prerequisitos: [], creditos: 3 },
+  "C8272": { nombre: "Normas en Ingeniería", prerequisitos: ["C8290"], creditos: 2 },
+  "INVESTIGACION": { nombre: "Trabajo de Investigación", prerequisitos: ["C8269"], creditos: 5 },
+  "C8292": { nombre: "Seguridad Avanzada", prerequisitos: ["C8284"], creditos: 4 },
+  "C8293": { nombre: "Derecho Informático", prerequisitos: ["C0772"], creditos: 2 },
+  "ELECTIVA_V": { nombre: "Electiva V", prerequisitos: [], creditos: 3 },
+  "ELECTIVA_VI": { nombre: "Electiva VI", prerequisitos: [], creditos: 3 },
+  "COMP_I": { nombre: "Actividad Complementaria I", prerequisitos: [], creditos: 1 },
+  "COMP_II": { nombre: "Actividad Complementaria II", prerequisitos: [], creditos: 1 },
+  "COMP_III": { nombre: "Actividad Complementaria III", prerequisitos: [], creditos: 1 },
+  "COMP_IV": { nombre: "Actividad Complementaria IV", prerequisitos: [], creditos: 1 }
+};
+/* ──────────── CONSTANTES DE LÍMITES ──────────── */
+const semesterLimits=[20,22,22,22,22,22,20,20,19,20];  // por ciclo real (1‑10)
+const summerLimit=12;                                   // tope fijo para veranos
+
+/* ──────────── ESTRUCTURAS DE ESTADO ──────────── */
+let completados = new Set();             // todos los cursos marcados
+let excepciones = new Set();             // cursos añadidos con excepción
+let excepcionMode=false;                 // estado del botón
+
+/* periodos = [{type:'Semestre'|'Verano', cursos:Set()}] */
+let periodos=[{type:'Semestre',cursos:new Set()}];
+let currentPeriod=0;
+
+/* ──────────── BOTÓN EXCEPCIÓN ──────────── */
+const btnEx=document.getElementById('toggleExcepcion');
+btnEx.onclick=()=>{excepcionMode=!excepcionMode;updateExBtn();};
+
+/* ──────────── SELECT + BOTONES NUEVOS ──────────── */
+const sel=document.getElementById('periodSelect');
+const btnNS=document.getElementById('newSem');
+const btnNV=document.getElementById('newSum');
+
+btnNS.onclick=()=>{addPeriod('Semestre');};
+btnNV.onclick=()=>{addPeriod('Verano');};
+sel.onchange=e=>{currentPeriod=+e.target.value;renderPeriodos();};
+
+/* ──────────── FUNCIONES DE APOYO ──────────── */
+function addPeriod(type){
+  periodos.push({type,cursos:new Set()});
+  updatePeriodSelect(periodos.length-1);
+  renderPeriodos();
+}
+function updatePeriodSelect(idx=0){
+  sel.innerHTML='';
+  let sCount=0,vCount=0;
+  periodos.forEach((p,i)=>{
+    if(p.type==='Semestre')sCount++;
+    else vCount++;
+    const opt=document.createElement('option');
+    opt.value=i;
+    opt.textContent=`${p.type} ${p.type==='Semestre'?sCount:vCount}`;
+    sel.appendChild(opt);
+  });
+  sel.value=idx;
+  currentPeriod=idx;
+}
+function updateExBtn(){
+  btnEx.textContent=`Excepción (${excepciones.size}/5) – ${excepcionMode?'ON':'OFF'}`;
+}
+
+/* ──────────── RENDER MALLA ──────────── */
+function renderCursos(){
+  const cont=document.getElementById('contenedor');
+  cont.innerHTML='';
+  for(const ciclo in ciclos){
+    const d=document.createElement('div');
+    d.className='ciclo';
+    const tit=document.createElement('div');
+    tit.className='titulo-ciclo'; tit.textContent=ciclo;
+    d.appendChild(tit);
+    for(const code of ciclos[ciclo]){
+      const c=cursos[code]||{nombre:code,prerequisitos:[],creditos:0};
+      const div=document.createElement('div');
+      div.className='curso';
+      div.innerHTML=`${c.nombre}<br><strong>(${c.creditos} cr)</strong>`;
+      const prereqOk=c.prerequisitos.every(p=>completados.has(p));
+      const globalCred=[...completados].reduce((s,x)=>s+(cursos[x]?.creditos||0),0);
+      if(completados.has(code))div.classList.add('pasado');
+      else if(prereqOk&&(!c.creditosMinimos||globalCred>=c.creditosMinimos))
+        div.classList.add('desbloqueado');
+      if(excepciones.has(code))div.classList.add('excepcion');
+      div.onclick=()=>toggleCurso(code);
+      d.appendChild(div);
+    }
+    cont.appendChild(d);
+  }
+  const total=[...completados].reduce((s,x)=>s+(cursos[x]?.creditos||0),0);
+  document.getElementById('creditos-info').textContent=`Créditos obtenidos: ${total} / 209`;
+  updateExBtn();
+}
+
+/* ──────────── TOGGLE CURSO ──────────── */
+function toggleCurso(code){
+  const c=cursos[code]||{nombre:code,prerequisitos:[],creditos:0};
+  const prereqOk=c.prerequisitos.every(p=>completados.has(p));
+  const globalCred=[...completados].reduce((s,x)=>s+(cursos[x]?.creditos||0),0);
+
+  if(!completados.has(code)){       // intentar añadir
+    /* ——— cálculo de tope de créditos del periodo actual ——— */
+    const cicloReal=getCicloReal(code);
+    const limite = (periodos[currentPeriod].type==='Semestre')
+                   ? (semesterLimits[cicloReal-1]||20)
+                   : summerLimit;
+    const usados=[...periodos[currentPeriod].cursos]
+                 .reduce((s,x)=>s+(cursos[x]?.creditos||0),0);
+    if(usados+c.creditos>limite){
+      alert(`Este ${periodos[currentPeriod].type.toLowerCase()} tiene un límite de ${limite} créditos. Ya tienes ${usados} créditos.`);
+      return;
+    }
+    if(prereqOk&&(!c.creditosMinimos||globalCred>=c.creditosMinimos)){
+      completados.add(code);
+      periodos[currentPeriod].cursos.add(code);
+    }else if(excepcionMode){
+      if(excepciones.size>=5&&!excepciones.has(code)){
+        alert('Ya tienes 5 cursos en excepción.');
+        return;
+      }
+      completados.add(code);
+      periodos[currentPeriod].cursos.add(code);
+      excepciones.add(code);
+    }else{
+      alert('Faltan prerrequisitos o créditos mínimos (o usa modo Excepción).');
+      return;
+    }
+  }else{                            // quitar curso
+    completados.delete(code);
+    excepciones.delete(code);
+    periodos.forEach(p=>p.cursos.delete(code));
+  }
+  renderCursos();
+  renderPeriodos();
+}
+
+/* ──────────── CICLO REAL (más atrasado) ──────────── */
+function getCicloReal(extra){
+  const temp=new Set(completados);
+  if(extra)temp.add(extra);
+  const keys=Object.keys(ciclos);
+  for(let i=0;i<keys.length;i++){
+    if(ciclos[keys[i]].some(code=>!temp.has(code)))return i+1;
+  }
+  return 10;
+}
+
+/* ──────────── RENDER PERIODOS ──────────── */
+function renderPeriodos(){
+  const cont=document.getElementById('periodos');
+  cont.innerHTML='';
+  let sCount=0,vCount=0;
+  periodos.forEach((p,i)=>{
+    if(p.type==='Semestre')sCount++;else vCount++;
+    const div=document.createElement('div');
+    div.className='periodo';
+    const cred=[...p.cursos].reduce((s,x)=>s+(cursos[x]?.creditos||0),0);
+    div.innerHTML=`<h3>${p.type} ${p.type==='Semestre'?sCount:vCount} (${cred} cr)</h3>`;
+    p.cursos.forEach(code=>{
+      const para=document.createElement('p');
+      para.textContent=cursos[code]?.nombre||code;
+      div.appendChild(para);
+    });
+    cont.appendChild(div);
+  });
+}
+
+/* ──────────── INICIO ──────────── */
+updatePeriodSelect();
+renderCursos();
+renderPeriodos();
+</script>
+
+</body>
+</html>
